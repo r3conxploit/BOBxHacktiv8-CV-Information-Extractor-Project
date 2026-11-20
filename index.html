@@ -1,0 +1,1466 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LensaTalenta — CV Extraction Engine</title>
+
+  <!-- PDF.js: real PDF text extraction in browser -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- mammoth.js: real DOCX text extraction in browser -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+
+  <style>
+/* ══ RESET ══════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:       #060d14;
+  --bg-p:     rgba(10,25,40,0.78);
+  --bg-c:     rgba(12,28,46,0.85);
+  --bg-in:    rgba(6,16,28,0.92);
+  --bdr:      rgba(0,200,220,0.15);
+  --bdr-g:    rgba(0,220,255,0.40);
+  --cy:       #00d4f5;
+  --cy2:      #0099bb;
+  --tl:       #00f5c8;
+  --ac:       #3b82f6;
+  --ac2:      #7c3aed;
+  --tx:       #d6eaf4;
+  --txm:      #6b8ea8;
+  --txd:      #2e4d60;
+  --ok:       #22c55e;
+  --warn:     #f59e0b;
+  --err:      #ef4444;
+  --r:        12px;
+  --rs:       7px;
+}
+html,body{height:100%;font-family:-apple-system,"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--tx);overflow:hidden}
+body::before{content:'';position:fixed;inset:0;z-index:0;
+  background-image:linear-gradient(rgba(0,212,245,.03) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(0,212,245,.03) 1px,transparent 1px);
+  background-size:40px 40px;pointer-events:none}
+body::after{content:'';position:fixed;inset:0;z-index:0;
+  background:radial-gradient(ellipse 60% 40% at 10% 20%,rgba(0,180,255,.07) 0%,transparent 70%),
+             radial-gradient(ellipse 50% 50% at 85% 75%,rgba(0,245,200,.05) 0%,transparent 70%);
+  pointer-events:none}
+
+/* ══ SCROLLBAR ══ */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:4px}
+
+/* ══ HEADER ══ */
+header{
+  position:relative;z-index:10;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 24px;
+  border-bottom:1px solid var(--bdr);
+  background:rgba(6,13,20,.93);
+  backdrop-filter:blur(16px);
+  flex-shrink:0;
+}
+.logo{display:flex;align-items:center;gap:9px;font-size:19px;font-weight:700}
+.logo-icon{width:30px;height:30px;background:linear-gradient(135deg,var(--cy),var(--tl));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px}
+.logo .lm{color:var(--tx)}.logo .la{color:var(--cy)}
+.hdr-right{display:flex;align-items:center;gap:14px;font-size:11px;color:var(--txm)}
+.dot-ok{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 6px var(--ok);margin-right:4px}
+.dot-busy{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--warn);box-shadow:0 0 6px var(--warn);margin-right:4px;animation:blink .8s infinite}
+@keyframes blink{50%{opacity:.3}}
+
+/* ══ APP SHELL ══ */
+.app{display:flex;flex-direction:column;height:100vh;overflow:hidden;position:relative;z-index:1}
+
+/* ══ WORKSPACE: 3-column ══ */
+.workspace{
+  display:grid;
+  grid-template-columns:280px 1fr 420px;
+  flex:1;overflow:hidden;
+}
+.col{display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--bdr)}
+.col:last-child{border-right:none}
+
+/* ══ COL HEADERS ══ */
+.col-hdr{
+  padding:12px 16px 10px;
+  border-bottom:1px solid var(--bdr);
+  background:rgba(0,0,0,.2);
+  display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;
+}
+.col-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.4px;color:var(--cy)}
+.col-body{flex:1;overflow-y:auto;padding:14px 13px}
+
+/* ══ UPLOAD ZONE ══ */
+.upload-zone{
+  border:2px dashed var(--bdr);border-radius:var(--r);
+  padding:22px 16px;text-align:center;cursor:pointer;
+  transition:border-color .2s,background .2s;
+  background:rgba(0,212,245,.025);position:relative;overflow:hidden;
+}
+.upload-zone:hover,.upload-zone.drag-over{border-color:var(--cy);background:rgba(0,212,245,.06)}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.up-icon{font-size:28px;margin-bottom:8px;opacity:.7}
+.up-lbl{font-size:13px;color:var(--tx);margin-bottom:3px}
+.up-hint{font-size:11px;color:var(--txm)}
+.fmt-row{display:flex;gap:5px;justify-content:center;margin-top:10px}
+.fmt{font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid var(--bdr);color:var(--txm);background:rgba(0,0,0,.3);font-weight:600;letter-spacing:.5px}
+
+/* batch indicator */
+.batch-info{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:7px 11px;border-radius:var(--rs);
+  background:rgba(0,212,245,.06);border:1px solid rgba(0,212,245,.15);
+  font-size:11px;color:var(--cy);margin-top:7px;
+}
+.batch-count{font-weight:700;color:var(--cy)}
+
+/* ══ SECTION LABEL ══ */
+.slbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.4px;color:var(--txm);margin:16px 0 8px;display:flex;align-items:center;gap:7px}
+.slbl::after{content:'';flex:1;height:1px;background:var(--bdr)}
+
+/* ══ SAMPLE CARDS ══ */
+.smp-card{
+  background:var(--bg-c);border:1px solid var(--bdr);border-radius:var(--r);
+  padding:11px 13px;cursor:pointer;
+  transition:border-color .18s,transform .15s,box-shadow .18s;
+  margin-bottom:8px;display:flex;align-items:flex-start;gap:10px;
+}
+.smp-card:hover{border-color:var(--cy);transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,212,245,.1)}
+.smp-card.active{border-color:var(--cy);background:rgba(0,212,245,.07)}
+.smp-av{width:38px;height:38px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#fff;border:2px solid rgba(255,255,255,.1)}
+.smp-info{flex:1;min-width:0}
+.smp-name{font-size:13px;font-weight:600;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.smp-role{font-size:11px;color:var(--cy);margin:1px 0}
+.smp-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.tag{font-size:10px;padding:2px 6px;background:rgba(0,212,245,.1);color:var(--cy2);border-radius:4px;border:1px solid rgba(0,212,245,.15)}
+
+/* ══ TEXTAREA ══ */
+.cv-ta{width:100%;min-height:120px;resize:vertical;background:var(--bg-in);border:1px solid var(--bdr);border-radius:var(--rs);color:var(--tx);padding:10px 12px;font-size:11px;line-height:1.6;font-family:"Cascadia Code","Fira Mono",monospace;outline:none;transition:border-color .2s}
+.cv-ta:focus{border-color:var(--cy)}
+
+/* ══ KEYWORD ══ */
+.kw-row{display:flex;gap:7px;margin-top:5px}
+.kw-in{flex:1;background:var(--bg-in);border:1px solid var(--bdr);border-radius:var(--rs);color:var(--tx);padding:7px 11px;font-size:12px;outline:none;transition:border-color .2s}
+.kw-in:focus{border-color:var(--cy)}
+.kw-in::placeholder{color:var(--txd)}
+.kw-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.kw-pill{display:flex;align-items:center;gap:4px;font-size:11px;padding:3px 9px;background:rgba(124,58,237,.2);color:#a78bfa;border:1px solid rgba(124,58,237,.3);border-radius:20px}
+.kw-rm{cursor:pointer;color:rgba(167,139,250,.6);font-size:13px;line-height:1}
+.kw-rm:hover{color:var(--err)}
+
+/* ══ BUTTONS ══ */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:8px 15px;border-radius:var(--rs);font-size:12px;font-weight:600;cursor:pointer;border:1px solid transparent;transition:all .18s;white-space:nowrap}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-primary{background:linear-gradient(135deg,var(--cy),#0088aa);color:#060d14;border-color:transparent}
+.btn-primary:hover:not(:disabled){box-shadow:0 0 16px rgba(0,212,245,.35);transform:translateY(-1px)}
+.btn-ghost{background:transparent;border-color:var(--bdr);color:var(--txm)}
+.btn-ghost:hover{border-color:var(--cy);color:var(--cy)}
+.btn-sm{padding:5px 10px;font-size:11px}
+.btn-danger{background:transparent;border-color:rgba(239,68,68,.3);color:var(--err)}
+.btn-danger:hover{background:rgba(239,68,68,.1)}
+.ext-btn{width:100%;margin-top:12px;padding:11px;font-size:13px}
+
+/* ══ PROGRESS ══ */
+.prog-wrap{display:none;margin-top:11px}
+.prog-wrap.show{display:block}
+.prog-track{height:3px;background:var(--bdr);border-radius:3px;overflow:hidden}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--cy),var(--tl));border-radius:3px;width:0%;transition:width .3s}
+.prog-st{font-size:10px;color:var(--txm);margin-top:4px;text-align:center}
+
+/* ══ SPINNER ══ */
+.spin{width:14px;height:14px;border:2px solid rgba(0,212,245,.3);border-top-color:var(--cy);border-radius:50%;animation:sp .75s linear infinite;flex-shrink:0}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ══ MIDDLE COL: candidate list ══ */
+.cand-toolbar{
+  padding:10px 13px;border-bottom:1px solid var(--bdr);
+  background:rgba(0,0,0,.18);flex-shrink:0;
+  display:flex;flex-direction:column;gap:7px;
+}
+.search-in{width:100%;background:var(--bg-in);border:1px solid var(--bdr);border-radius:var(--rs);color:var(--tx);padding:7px 11px 7px 32px;font-size:12px;outline:none;transition:border-color .2s;position:relative}
+.search-in:focus{border-color:var(--cy)}
+.search-wrap{position:relative}
+.search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;opacity:.4;pointer-events:none}
+.filter-row{display:flex;gap:6px;flex-wrap:wrap}
+.filter-sel{background:var(--bg-in);border:1px solid var(--bdr);border-radius:var(--rs);color:var(--txm);padding:5px 8px;font-size:11px;outline:none;cursor:pointer;transition:border-color .2s;min-width:80px}
+.filter-sel:focus,.filter-sel:hover{border-color:var(--cy);color:var(--tx)}
+.stats-row{display:flex;gap:10px;font-size:10px;color:var(--txm)}
+.stat-pill{background:rgba(0,212,245,.07);border:1px solid rgba(0,212,245,.12);border-radius:4px;padding:2px 7px;color:var(--cy)}
+
+/* ══ CANDIDATE LIST ══ */
+.cand-list-body{flex:1;overflow-y:auto;padding:10px}
+.empty-mid{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;gap:10px;color:var(--txm)}
+.empty-icon{font-size:44px;opacity:.2}
+.empty-t{font-size:14px;font-weight:600;color:var(--txd)}
+.empty-d{font-size:12px;max-width:260px;line-height:1.6}
+
+.cand-item{
+  background:var(--bg-c);border:1px solid var(--bdr);border-radius:var(--r);
+  padding:11px 13px;cursor:pointer;margin-bottom:8px;
+  transition:border-color .18s,background .18s;
+  display:flex;align-items:center;gap:10px;
+}
+.cand-item:hover{border-color:rgba(0,212,245,.4);background:rgba(0,212,245,.04)}
+.cand-item.selected{border-color:var(--cy);background:rgba(0,212,245,.07)}
+.ci-av{width:36px;height:36px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff}
+.ci-info{flex:1;min-width:0}
+.ci-name{font-size:13px;font-weight:600;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ci-role{font-size:11px;color:var(--cy2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ci-meta{display:flex;gap:6px;margin-top:4px;flex-wrap:wrap}
+.ci-tag{font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(0,0,0,.3);border:1px solid var(--bdr);color:var(--txm)}
+.ci-score{flex-shrink:0;text-align:center}
+.ci-score-num{font-size:16px;font-weight:800;line-height:1}
+.ci-score-lbl{font-size:9px;color:var(--txm);text-transform:uppercase}
+.score-h{color:var(--ok)}.score-m{color:var(--warn)}.score-l{color:var(--err)}
+
+/* ══ BOTTOM TOOLBAR ══ */
+.bottom-bar{
+  flex-shrink:0;padding:8px 13px;
+  border-top:1px solid var(--bdr);background:rgba(0,0,0,.2);
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+}
+
+/* ══ RIGHT COL: detail ══ */
+.tab-row{display:flex;padding:0 16px;border-bottom:1px solid var(--bdr);background:rgba(0,0,0,.2);flex-shrink:0}
+.tab-btn{padding:12px 16px 10px;font-size:11px;font-weight:600;color:var(--txm);cursor:pointer;border:none;background:transparent;border-bottom:2px solid transparent;transition:all .18s;text-transform:uppercase;letter-spacing:1px}
+.tab-btn.active{color:var(--cy);border-bottom-color:var(--cy)}
+.tab-btn:hover:not(.active){color:var(--tx)}
+.tab-content{display:none;flex:1;overflow-y:auto;padding:16px}
+.tab-content.active{display:block}
+
+/* ══ PROFILE DETAIL ══ */
+.pd-header{background:var(--bg-c);border:1px solid var(--bdr);border-radius:var(--r);padding:18px;display:flex;gap:14px;align-items:flex-start;margin-bottom:12px;position:relative;overflow:hidden}
+.pd-header::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--cy),var(--tl),transparent)}
+.pd-av{width:60px;height:60px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--ac),var(--ac2));border:2px solid rgba(0,212,245,.3)}
+.pd-main{flex:1;min-width:0}
+.pd-name{font-size:19px;font-weight:700;color:var(--tx);line-height:1.2;margin-bottom:3px}
+.pd-role{font-size:12px;color:var(--cy);margin-bottom:8px}
+.pd-meta{display:flex;flex-direction:column;gap:4px}
+.meta-it{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--txm)}
+.score-ring{flex-shrink:0;text-align:center}
+.score-circle{width:58px;height:58px;border-radius:50%;border:3px solid;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.sc-num{font-size:18px;font-weight:800;line-height:1}
+.sc-sub{font-size:9px;font-weight:600}
+.sc-lbl{font-size:9px;color:var(--txm);margin-top:4px;text-transform:uppercase;letter-spacing:.5px}
+.score-high{border-color:var(--ok);color:var(--ok);background:rgba(34,197,94,.07)}
+.score-mid{border-color:var(--warn);color:var(--warn);background:rgba(245,158,11,.07)}
+.score-low{border-color:var(--err);color:var(--err);background:rgba(239,68,68,.07)}
+
+/* info blocks */
+.ib{background:var(--bg-c);border:1px solid var(--bdr);border-radius:var(--r);padding:13px;margin-bottom:10px}
+.ib-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:var(--cy);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.ib-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.03);font-size:12px}
+.ib-row:last-child{border-bottom:none}
+.ib-k{color:var(--txm)}.ib-v{color:var(--tx);font-weight:500;text-align:right;max-width:60%}
+
+.skills-wrap{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.sk-h{font-size:11px;padding:3px 8px;border-radius:20px;background:rgba(0,212,245,.1);color:var(--cy);border:1px solid rgba(0,212,245,.2)}
+.sk-s{font-size:11px;padding:3px 8px;border-radius:20px;background:rgba(124,58,237,.12);color:#a78bfa;border:1px solid rgba(124,58,237,.2)}
+.sk-match{background:rgba(34,197,94,.15)!important;color:#4ade80!important;border-color:rgba(34,197,94,.3)!important;box-shadow:0 0 5px rgba(34,197,94,.2)}
+.sk-grp{font-size:10px;color:var(--txm);text-transform:uppercase;letter-spacing:1px;margin:8px 0 5px;font-weight:600}
+
+.exp-it{padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.exp-it:last-child{border-bottom:none;padding-bottom:0}
+.exp-role{font-size:12px;font-weight:600;color:var(--tx)}
+.exp-co{font-size:11px;color:var(--cy2);margin:1px 0}
+.exp-dur{font-size:10px;color:var(--txm)}
+.dur-badge{background:rgba(0,0,0,.3);border:1px solid var(--bdr);padding:1px 6px;border-radius:4px;font-size:10px;color:var(--txm);margin-top:3px;display:inline-block}
+
+.edu-it{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.edu-it:last-child{border-bottom:none}
+.edu-deg{font-size:12px;font-weight:600;color:var(--tx)}
+.edu-sch{font-size:11px;color:var(--cy2);margin:1px 0}
+.edu-yr{font-size:10px;color:var(--txm)}
+
+/* keyword match bar */
+.kw-bar{background:var(--bg-c);border:1px solid var(--bdr);border-radius:var(--r);padding:13px;margin-bottom:10px}
+.kw-bar-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:var(--ac2);margin-bottom:10px}
+.kw-track-row{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+.kw-track{flex:1;height:5px;background:var(--bdr);border-radius:5px;overflow:hidden}
+.kw-fill{height:100%;background:linear-gradient(90deg,var(--ac2),var(--cy));border-radius:5px;transition:width .5s}
+.kw-pct{font-size:12px;font-weight:700;color:#a78bfa;min-width:32px;text-align:right}
+.kw-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.kw-y{font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(34,197,94,.12);color:#4ade80;border:1px solid rgba(34,197,94,.25)}
+.kw-n{font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.2);text-decoration:line-through;opacity:.7}
+
+/* json */
+.json-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.json-lbl{font-size:10px;color:var(--txm)}
+.json-box{background:var(--bg-in);border:1px solid var(--bdr);border-radius:var(--rs);padding:12px;font-size:11px;line-height:1.65;font-family:"Cascadia Code","Fira Mono",monospace;white-space:pre;overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 160px);color:#a8c6d8}
+.jk{color:#79c0ff}.js{color:#a5d6a7}.jn{color:#f8c291}.jb{color:#9fa8da}
+
+.flash{display:none;font-size:11px;color:var(--ok)}
+.cf-row{display:flex;gap:7px;align-items:center}
+
+/* no-select on labels */
+.slbl,.col-title,.ib-title,.kw-bar-title{user-select:none}
+
+/* ══ TOOLTIP ══ */
+#lt-tooltip{
+  position:fixed;z-index:9999;
+  background:rgba(6,13,20,0.96);
+  border:1px solid var(--bdr-g);
+  color:var(--cy);
+  font-size:11px;font-weight:600;
+  padding:5px 11px;
+  border-radius:6px;
+  pointer-events:none;
+  white-space:nowrap;
+  box-shadow:0 4px 16px rgba(0,212,245,0.18);
+  opacity:0;transition:opacity 0.15s;
+  letter-spacing:0.4px;
+}
+#lt-tooltip.show{opacity:1}
+  </style>
+</head>
+<body>
+<div class="app">
+
+<!-- ══ HEADER ══ -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">🔍</div>
+    <span class="lm">Lensa</span><span class="la">Talenta</span>
+  </div>
+  <div class="hdr-right">
+    <span id="hdrStatus"><span class="dot-ok"></span>Siap</span>
+    <span style="color:var(--bdr)">|</span>
+    <span>CV Extraction Platform <b style="color:var(--cy)">v2.0</b></span>
+    <span style="color:var(--bdr)">|</span>
+    <span id="hdrCount" style="color:var(--cy)">0 kandidat</span>
+  </div>
+</header>
+
+<!-- ══ WORKSPACE ══ -->
+<div class="workspace">
+
+  <!-- ════ COL 1: INPUT ════ -->
+  <div class="col">
+    <div class="col-hdr">
+      <span class="col-title">📂 Input CV</span>
+      <button class="btn btn-ghost btn-sm" onclick="clearAll()">Reset</button>
+    </div>
+    <div class="col-body">
+
+      <!-- Upload multi-file -->
+      <div class="upload-zone" id="upZone">
+        <input type="file" id="fileIn" accept=".pdf,.doc,.docx" multiple/>
+        <div class="up-icon">📂</div>
+        <div class="up-lbl">Seret CV ke sini (multi-file)</div>
+        <div class="up-hint">atau klik untuk pilih file</div>
+        <div class="fmt-row">
+          <span class="fmt">PDF</span>
+          <span class="fmt">DOC</span>
+          <span class="fmt">DOCX</span>
+        </div>
+      </div>
+      <div id="batchInfo" style="display:none;" class="batch-info">
+        <span>📋 <span id="batchCount" class="batch-count">0</span> file antri</span>
+        <button class="btn btn-primary btn-sm" onclick="processQueue()">▶ Proses Semua</button>
+      </div>
+
+      <!-- Sample CVs -->
+      <div class="slbl">Contoh CV Siap Pakai</div>
+
+      <div class="smp-card" id="sc0" onclick="loadSample(0)">
+        <div class="smp-av" style="background:linear-gradient(135deg,#2563eb,#7c3aed)">RA</div>
+        <div class="smp-info">
+          <div class="smp-name">Rizky Aditya Pratama</div>
+          <div class="smp-role">Junior Backend Developer</div>
+          <div class="smp-tags"><span class="tag">Node.js</span><span class="tag">Go</span><span class="tag">PostgreSQL</span><span class="tag">Docker</span></div>
+        </div>
+      </div>
+
+      <div class="smp-card" id="sc1" onclick="loadSample(1)">
+        <div class="smp-av" style="background:linear-gradient(135deg,#0d9488,#0891b2)">NS</div>
+        <div class="smp-info">
+          <div class="smp-name">Nadia Salsabila</div>
+          <div class="smp-role">Product Designer</div>
+          <div class="smp-tags"><span class="tag">Figma</span><span class="tag">UX Research</span><span class="tag">Design System</span></div>
+        </div>
+      </div>
+
+      <!-- Paste text -->
+      <div class="slbl">Paste / Edit Teks CV</div>
+      <textarea class="cv-ta" id="cvText" rows="8" placeholder="Paste teks CV di sini atau upload file di atas…&#10;&#10;PDF & DOCX akan diekstrak otomatis menjadi teks."></textarea>
+
+      <!-- Keyword matching -->
+      <div class="slbl">Keyword Matching</div>
+      <div class="kw-row">
+        <input class="kw-in" id="kwIn" placeholder="Tambah keyword (Enter)…" onkeydown="kwKey(event)"/>
+        <button class="btn btn-ghost btn-sm" onclick="addKw()" title="Tambah keyword" aria-label="Tambah keyword" style="font-size:16px;padding:5px 11px;line-height:1" onmouseenter="showTip(this,'Tambah Keyword')" onmouseleave="hideTip()">+</button>
+      </div>
+      <div class="kw-tags" id="kwTags"></div>
+
+      <button class="btn btn-primary ext-btn" id="extBtn" onclick="runSingle()">
+        <span>⚡</span> Ekstrak Informasi CV
+      </button>
+      <div class="prog-wrap" id="progWrap">
+        <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+        <div class="prog-st" id="progSt">Memproses…</div>
+      </div>
+
+    </div>
+  </div><!-- end col 1 -->
+
+  <!-- ════ COL 2: CANDIDATE LIST ════ -->
+  <div class="col" style="border-right:1px solid var(--bdr)">
+    <div class="col-hdr">
+      <span class="col-title">👥 Daftar Kandidat</span>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick="exportCSV()">⬇ CSV</button>
+        <button class="btn btn-danger btn-sm" onclick="clearCandidates()" title="Hapus semua kandidat" aria-label="Hapus semua kandidat" onmouseenter="showTip(this,'Hapus Semua Kandidat')" onmouseleave="hideTip()">🗑</button>
+      </div>
+    </div>
+
+    <!-- Toolbar: search + filters -->
+    <div class="cand-toolbar">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input class="search-in" id="searchIn" placeholder="Cari nama, skill, perusahaan…" oninput="applyFilters()"/>
+      </div>
+      <div class="filter-row">
+        <select class="filter-sel" id="fEdu" onchange="applyFilters()">
+          <option value="">🎓 Semua Pendidikan</option>
+          <option value="S1">S1</option>
+          <option value="S2">S2</option>
+          <option value="D3">D3</option>
+          <option value="SMA">SMA/SMK</option>
+        </select>
+        <select class="filter-sel" id="fExp" onchange="applyFilters()">
+          <option value="">💼 Semua Pengalaman</option>
+          <option value="0-12">0–12 bln (Fresh)</option>
+          <option value="12-36">1–3 tahun</option>
+          <option value="36-72">3–6 tahun</option>
+          <option value="72+">6+ tahun</option>
+        </select>
+        <select class="filter-sel" id="fScore" onchange="applyFilters()">
+          <option value="">⭐ Semua Skor</option>
+          <option value="70">≥ 70 (Tinggi)</option>
+          <option value="45">≥ 45 (Menengah)</option>
+          <option value="0">< 45 (Rendah)</option>
+        </select>
+        <select class="filter-sel" id="fAge" onchange="applyFilters()">
+          <option value="">🎂 Semua Usia</option>
+          <option value="<25">Di bawah 25</option>
+          <option value="25-30">25–30</option>
+          <option value="31-35">31–35</option>
+          <option value="36+">36+</option>
+        </select>
+      </div>
+      <div class="stats-row" id="statsRow">
+        <span class="stat-pill" id="statTotal">0 total</span>
+        <span class="stat-pill" id="statShown">0 ditampilkan</span>
+        <span class="stat-pill" id="statAvgScore">Skor rata-rata: —</span>
+      </div>
+    </div>
+
+    <div class="cand-list-body" id="candListBody">
+      <div class="empty-mid">
+        <div class="empty-icon">🧬</div>
+        <div class="empty-t">Belum ada kandidat</div>
+        <div class="empty-d">Upload CV atau pilih contoh, lalu klik <b>Ekstrak</b>. Mendukung batch ratusan file.</div>
+      </div>
+    </div>
+
+    <div class="bottom-bar">
+      <div style="font-size:11px;color:var(--txm)" id="selInfo">—</div>
+      <button class="btn btn-ghost btn-sm" id="batchAllBtn" onclick="batchAutoload()" style="display:none">⚡ Proses Antrian</button>
+    </div>
+  </div><!-- end col 2 -->
+
+  <!-- ════ COL 3: DETAIL ════ -->
+  <div class="col" id="detailCol">
+    <div class="col-hdr">
+      <span class="col-title" id="detailTitle">📋 Detail Kandidat</span>
+      <div id="procBadge" style="display:none;align-items:center;gap:6px;">
+        <div class="spin"></div><span style="font-size:10px;color:var(--cy)">Mengekstrak…</span>
+      </div>
+    </div>
+    <div class="tab-row">
+      <button class="tab-btn active" onclick="switchTab('profile')">🪪 Profil</button>
+      <button class="tab-btn" onclick="switchTab('json')">{ } JSON</button>
+    </div>
+    <div class="tab-content active" id="tab-profile">
+      <div class="empty-mid" id="emptyDetail" style="height:60vh">
+        <div class="empty-icon">👆</div>
+        <div class="empty-t">Pilih kandidat</div>
+        <div class="empty-d">Klik kandidat di daftar kiri untuk melihat detail profil lengkap.</div>
+      </div>
+      <div id="profileDetail" style="display:none"></div>
+    </div>
+    <div class="tab-content" id="tab-json">
+      <div class="empty-mid" id="emptyJson" style="height:60vh">
+        <div class="empty-icon">📋</div>
+        <div class="empty-t">JSON belum tersedia</div>
+        <div class="empty-d">Pilih kandidat dari daftar untuk melihat data JSON mentah.</div>
+      </div>
+      <div id="jsonDetail" style="display:none">
+        <div class="json-bar">
+          <span class="json-lbl">application/json</span>
+          <div class="cf-row">
+            <span class="flash" id="cpFlash">✅ Disalin!</span>
+            <button class="btn btn-ghost btn-sm" onclick="copyJson()">⎘ Salin</button>
+          </div>
+        </div>
+        <div class="json-box" id="jsonBox"></div>
+      </div>
+    </div>
+  </div><!-- end col 3 -->
+
+</div><!-- end workspace -->
+</div><!-- end app -->
+
+<script>
+// ══════════════════════════════════════════════════════
+//  PDF.js worker setup
+// ══════════════════════════════════════════════════════
+if (typeof pdfjsLib !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+// ══════════════════════════════════════════════════════
+//  SAMPLE CVs (Indonesian, realistic)
+// ══════════════════════════════════════════════════════
+const SAMPLES = [
+`Rizky Aditya Pratama
+Junior Backend Developer
+
+Email: rizky.aditya@gmail.com
+LinkedIn: linkedin.com/in/rizkyaditya
+Lokasi: Jakarta Selatan, DKI Jakarta
+Telepon: +62 812-3456-7890
+Tanggal Lahir: 15 Maret 1999
+Jenis Kelamin: Laki-laki
+
+Profil Singkat
+Backend developer dengan 2 tahun pengalaman membangun REST API dan layanan microservices. Passion dalam optimasi database dan automasi deployment. Terbiasa bekerja dalam tim Agile.
+
+Pengalaman Kerja
+
+Backend Developer Intern — PT Timedoor Indonesia, Denpasar
+Februari 2023 – Agustus 2023 (7 bulan)
+- Membangun modul manajemen inventori dengan Node.js dan Express
+- Mengintegrasikan payment gateway Midtrans
+- Menulis unit test Jest dengan coverage >85%
+
+Junior Backend Developer — Konverto Digital, Jakarta
+September 2023 – Sekarang (14 bulan)
+- Merancang REST API untuk aplikasi logistik dengan 50.000+ pengguna aktif
+- Mengoptimasi query PostgreSQL, response time turun dari 1.2s ke 180ms
+- Migrasi monolitik ke microservices dengan Docker & Kubernetes
+
+Pendidikan
+S1 Teknik Informatika — Universitas Brawijaya, Malang
+2019 – 2023 | IPK: 3.72 / 4.00
+
+Keterampilan Teknis
+Node.js, Go (Golang), Python, PostgreSQL, MySQL, Redis, MongoDB, Docker, Kubernetes, Git, GitHub Actions, REST API, GraphQL, Swagger, JWT, Linux
+
+Keterampilan Lunak
+Problem solving, Komunikasi teknis, Kerja sama tim, Manajemen waktu, Analytical thinking
+
+Sertifikasi
+AWS Certified Cloud Practitioner (2024), Docker Certified Associate (2023)`,
+
+`Nadia Salsabila
+Product Designer
+
+Email: nadia.salsabila@outlook.com
+LinkedIn: linkedin.com/in/nadiasalsabila
+Lokasi: Bandung, Jawa Barat
+Portofolio: nadiasalsabila.design
+Tanggal Lahir: 22 Juli 1996
+Jenis Kelamin: Perempuan
+
+Tentang Saya
+Product designer dengan 3 tahun pengalaman merancang pengalaman digital user-centered. Spesialisasi mobile UX, design system, dan riset pengguna kualitatif. Produk dengan 500.000+ MAU.
+
+Pengalaman Kerja
+
+UI/UX Designer Freelance — Klien Berbagai Sektor
+Maret 2021 – November 2021 (9 bulan)
+- Merancang UI untuk 5 startup early-stage
+- Membuat wireframe, mockup, dan prototype interaktif di Figma
+- Usability testing dengan 20+ responden per proyek
+
+Product Designer — Ralali.com, Jakarta
+Desember 2021 – Oktober 2022 (11 bulan)
+- Memimpin redesain fitur procurement B2B, konversi naik 23%
+- Membangun design system yang digunakan 4 squad produk
+- User interview dan menerjemahkan insight ke solusi terukur
+
+Senior Product Designer — Stockbit, Jakarta
+November 2022 – Sekarang (25 bulan)
+- Memimpin desain fitur portofolio & analitik investasi (iOS & Android)
+- Mendefinisikan prinsip aksesibilitas WCAG 2.1 AA
+- Mentoring 2 junior designer
+
+Pendidikan
+S1 Desain Komunikasi Visual — Institut Teknologi Bandung (ITB)
+2017 – 2021 | IPK: 3.88 / 4.00
+
+Keterampilan Teknis
+Figma, Adobe XD, Sketch, Protopie, Zeplin, Design System, User Interview, Usability Testing, Affinity Mapping, Competitor Analysis, Information Architecture, Motion Design, HTML, CSS
+
+Keterampilan Lunak
+Empati, Storytelling, Presentasi desain, Kolaborasi lintas fungsi, Berpikir strategis, Berbasis data
+
+Sertifikasi
+Google UX Design Professional Certificate (2022), IxDF UX Research (2023)`
+];
+
+// ══════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════
+let candidates = [];   // array of extracted data objects
+let selectedId  = null;
+let keywords    = [];
+let fileQueue   = [];  // pending File objects
+
+// ══════════════════════════════════════════════════════
+//  FILE HANDLING — PDF.js + mammoth.js real extraction
+// ══════════════════════════════════════════════════════
+document.getElementById('fileIn').addEventListener('change', function(e) {
+  addFilesToQueue([...e.target.files]);
+  e.target.value = '';
+});
+
+const upZone = document.getElementById('upZone');
+upZone.addEventListener('dragover', e => { e.preventDefault(); upZone.classList.add('drag-over'); });
+upZone.addEventListener('dragleave', () => upZone.classList.remove('drag-over'));
+upZone.addEventListener('drop', e => {
+  e.preventDefault(); upZone.classList.remove('drag-over');
+  addFilesToQueue([...e.dataTransfer.files]);
+});
+
+function addFilesToQueue(files) {
+  const valid = files.filter(f => /\.(pdf|doc|docx)$/i.test(f.name));
+  fileQueue.push(...valid);
+  if (valid.length === 0) return;
+
+  if (valid.length === 1) {
+    // Single file: auto-load text into textarea
+    extractTextFromFile(valid[0]).then(text => {
+      document.getElementById('cvText').value = text;
+      document.getElementById('batchInfo').style.display = 'none';
+    });
+  } else {
+    // Multiple: show batch UI
+    document.getElementById('batchInfo').style.display = 'flex';
+    document.getElementById('batchCount').textContent = fileQueue.length;
+    document.getElementById('batchAllBtn').style.display = 'inline-flex';
+  }
+}
+
+async function extractTextFromFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  setBusy(true);
+  try {
+    if (ext === 'pdf') {
+      return await extractPDF(file);
+    } else if (ext === 'docx') {
+      return await extractDOCX(file);
+    } else {
+      // .doc: not fully parseable client-side, return descriptive message
+      return `[File DOC: ${file.name}]\n\nFormat .doc (Word 97-2003) belum bisa diekstrak langsung di browser. Simpan ulang sebagai .docx atau copy-paste teks CV di bawah ini.\n\nUntuk demo, silakan gunakan contoh CV di panel kiri.`;
+    }
+  } catch(err) {
+    console.error(err);
+    return `[Error membaca ${file.name}]\n${err.message}\n\nSilakan paste teks CV secara manual.`;
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function extractPDF(file) {
+  if (typeof pdfjsLib === 'undefined') {
+    throw new Error('PDF.js tidak termuat. Periksa koneksi internet.');
+  }
+  const ab = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+  let fullText = '';
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const lines = content.items.map(i => i.str).join(' ');
+    fullText += lines + '\n';
+  }
+  return fullText.trim();
+}
+
+async function extractDOCX(file) {
+  if (typeof mammoth === 'undefined') {
+    throw new Error('mammoth.js tidak termuat. Periksa koneksi internet.');
+  }
+  const ab = await file.arrayBuffer();
+  const result = await mammoth.extractRawText({ arrayBuffer: ab });
+  return result.value.trim();
+}
+
+// ══════════════════════════════════════════════════════
+//  BATCH PROCESSING — process entire fileQueue
+// ══════════════════════════════════════════════════════
+async function processQueue() {
+  if (fileQueue.length === 0) return;
+  const files = [...fileQueue];
+  fileQueue = [];
+  document.getElementById('batchInfo').style.display = 'none';
+
+  for (let i = 0; i < files.length; i++) {
+    setProgress(true, `Memproses ${i+1}/${files.length}: ${files[i].name}`, ((i+1)/files.length)*100);
+    const text = await extractTextFromFile(files[i]);
+    if (text && text.length > 30) {
+      const data = extractInfo(text, files[i].name);
+      addCandidate(data);
+    }
+    await sleep(60); // small yield for UI
+  }
+  setProgress(false);
+  applyFilters();
+}
+
+// ══════════════════════════════════════════════════════
+//  SAMPLE LOADER
+// ══════════════════════════════════════════════════════
+function loadSample(idx) {
+  document.querySelectorAll('.smp-card').forEach(c => c.classList.remove('active'));
+  document.getElementById('sc'+idx).classList.add('active');
+  document.getElementById('cvText').value = SAMPLES[idx];
+}
+
+// ══════════════════════════════════════════════════════
+//  KEYWORD MANAGEMENT
+// ══════════════════════════════════════════════════════
+function kwKey(e) { if(e.key==='Enter'){e.preventDefault();addKw();} }
+function addKw() {
+  const inp = document.getElementById('kwIn');
+  const v = inp.value.trim().toLowerCase();
+  if (!v || keywords.includes(v)) { inp.value=''; return; }
+  keywords.push(v);
+  renderKwTags();
+  inp.value = '';
+  inp.focus();
+  // re-render selected candidate if any
+  if (selectedId !== null) showDetail(selectedId);
+}
+function removeKw(k) {
+  keywords = keywords.filter(x=>x!==k);
+  renderKwTags();
+  if (selectedId !== null) showDetail(selectedId);
+}
+function renderKwTags() {
+  document.getElementById('kwTags').innerHTML = keywords.map(k =>
+    `<div class="kw-pill">${esc(k)}<span class="kw-rm" onclick="removeKw('${k}')">×</span></div>`
+  ).join('');
+}
+
+// ══════════════════════════════════════════════════════
+//  SINGLE EXTRACT (from textarea)
+// ══════════════════════════════════════════════════════
+function runSingle() {
+  const text = document.getElementById('cvText').value.trim();
+  if (!text || text.length < 20) {
+    alert('Masukkan atau upload teks CV terlebih dahulu.');
+    return;
+  }
+  const btn = document.getElementById('extBtn');
+  btn.disabled = true;
+  setProgress(true, 'Memuat teks CV…', 10);
+
+  const steps = [
+    [20,'Mengidentifikasi informasi pribadi…'],
+    [40,'Mengekstrak keterampilan…'],
+    [60,'Menganalisis pengalaman kerja…'],
+    [80,'Memproses pendidikan…'],
+    [95,'Menghitung skor kecocokan…'],
+    [100,'Selesai!']
+  ];
+  let i = 0;
+  const timer = setInterval(() => {
+    if (i >= steps.length) {
+      clearInterval(timer);
+      try {
+        const data = extractInfo(text);
+        addCandidate(data);
+        applyFilters();
+        showDetail(data.id);
+      } catch(err) {
+        console.error('Extraction error:', err);
+        alert('Terjadi error saat ekstraksi: ' + err.message);
+      }
+      btn.disabled = false;
+      // hide progress after short delay so "Selesai!" is visible
+      setTimeout(() => {
+        document.getElementById('progWrap').classList.remove('show');
+        document.getElementById('progFill').style.width = '0%';
+        document.getElementById('hdrStatus').innerHTML = '<span class="dot-ok"></span>Siap';
+        document.getElementById('procBadge').style.display = 'none';
+      }, 600);
+      return;
+    }
+    setProgress(true, steps[i][1], steps[i][0]);
+    i++;
+  }, 200);
+}
+
+// ══════════════════════════════════════════════════════
+//  EXTRACTION ENGINE
+// ══════════════════════════════════════════════════════
+let _idCounter = 0;
+
+function extractInfo(text, fileName) {
+  const id = ++_idCounter;
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+  const full  = text.toLowerCase();
+
+  // ── Personal Info ──
+  const emailM   = text.match(/[\w.+\-]+@[\w\-]+\.[a-z]{2,}/i);
+  const linkedM  = text.match(/linkedin\.com\/in\/[\w\-]+/i);
+  const phoneM   = text.match(/(\+62|08)[\d\s\-]{9,13}/);
+  const portM    = text.match(/(?:portofolio|portfolio|website)\s*[:\-]?\s*([\w.\/\-]+\.(?:design|dev|me|io|com|web)[\w.\/\-]*)/i);
+  const lokasiM  = text.match(/[Ll]okasi\s*[:\-]\s*(.+)/);
+  const genderM  = text.match(/[Jj]enis\s+[Kk]elamin\s*[:\-]\s*(\w+)/);
+
+  // Name: first meaningful line
+  let name = lines[0] || 'Tidak diketahui';
+  if (name.length > 60) name = name.slice(0, 60);
+
+  // Role
+  let role = '';
+  if (lines[1] && lines[1].length < 70 && !/email|phone|linkedin|lokasi|tanggal/i.test(lines[1])) {
+    role = lines[1];
+  }
+
+  // Age & birth date
+  const tglM = text.match(/[Tt]anggal\s+[Ll]ahir\s*[:\-]?\s*(\d{1,2}\s+\w+\s+\d{4}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/);
+  let usia = null;
+  let tglLahir = '';
+  if (tglM) {
+    tglLahir = tglM[1];
+    usia = parseAge(tglLahir);
+  } else {
+    // try to find just a year of birth
+    const yrM = text.match(/lahir[^:]*(\d{4})/i) || text.match(/kelahiran[^:]*(\d{4})/i);
+    if (yrM) {
+      const yr = parseInt(yrM[1]);
+      if (yr > 1950 && yr < 2010) usia = new Date().getFullYear() - yr;
+    }
+  }
+
+  // ── Skills ──
+  const HARD_DB = [
+    'node.js','nodejs','golang','go','python','java','php','ruby','rust','c++','c#','kotlin','swift',
+    'javascript','typescript','react','vue','angular','svelte','next.js','nuxt','express','fastapi',
+    'django','flask','laravel','spring','postgresql','mysql','mongodb','redis','elasticsearch','sqlite',
+    'docker','kubernetes','k8s','terraform','ansible','jenkins','github actions','ci/cd',
+    'aws','gcp','azure','linux','git','rest api','graphql','grpc','microservices','rabbitmq','kafka',
+    'nginx','figma','sketch','adobe xd','protopie','zeplin','html','css','scss','tailwind','bootstrap',
+    'design system','ux research','usability testing','wireframe','prototype','information architecture',
+    'wcag','motion design','affinity mapping','user interview','competitor analysis',
+    'swagger','openapi','jwt','oauth','webpack','vite','jest','cypress','postman',
+    'tensorflow','pytorch','machine learning','data science','excel','powerbi','tableau',
+    'photoshop','illustrator','after effects','3ds max','autocad','revit','sketchup',
+    'solidworks','matlab','r','spss','sap','odoo','salesforce','hubspot','wordpress'
+  ];
+  const SOFT_DB = [
+    'komunikasi','problem solving','analytical','team player','kerja sama','teamwork',
+    'manajemen waktu','time management','prioritas','empati','storytelling','presentasi',
+    'kolaborasi','cross-functional','berpikir strategis','data-driven','user advocacy',
+    'mentoring','leadership','kreativitas','adaptif','detail-oriented','proaktif',
+    'self-starter','agile','scrum','inisiatif','negosiasi','customer service',
+    'multitasking','teliti','disiplin','jujur','bertanggung jawab','inovatif'
+  ];
+
+  const hardSkills = HARD_DB.filter(s => full.includes(s));
+  const softSkills = SOFT_DB.filter(s => full.includes(s));
+
+  // also parse skills section tokens
+  const skillsSec = text.match(/[Kk]eterampilan\s+[Tt]eknis[^\n]*\n([\s\S]*?)(?=\n\n|\n[A-ZÀÁÂ]|\nSert|\nPend|$)/);
+  if (skillsSec) {
+    skillsSec[1].split(/[\n,;\|]/).forEach(tok => {
+      const t = tok.replace(/^[-•*]\s*/, '').replace(/\(.*?\)/g,'').trim().toLowerCase();
+      if (t.length > 1 && t.length < 35 && /[a-z0-9]/.test(t) && !hardSkills.includes(t) && !/keterampilan|teknis|bahasa|bahasa pemrograman/i.test(t)) {
+        hardSkills.push(t);
+      }
+    });
+  }
+
+  // ── Experience ──
+  const expM = text.match(/[Pp]engalaman\s+[Kk]erja([\s\S]*?)(?=\n[Pp]endidikan|\n[Ss]ertif|\n[Kk]eterampi|$)/);
+  const experiences = [];
+  if (expM) {
+    const expTxt = expM[1];
+    const jobPat = /([A-Za-z\s\/]+(?:Developer|Designer|Manager|Engineer|Analyst|Director|Intern|Lead|Freelance|Officer|Staf|Staff|Coordinator|Supervisor|Specialist|Consultant)[^\n]*)\s*[—–\-]+\s*([^\n]+)\n([^\n]*\d{4}[^\n]*)/g;
+    let m;
+    while ((m = jobPat.exec(expTxt)) !== null) {
+      const rl = m[1].trim(), co = m[2].trim(), dr = m[3].trim();
+      experiences.push({ role: rl, company: co, durationRaw: dr, months: parseDuration(dr) });
+    }
+    if (experiences.length === 0) {
+      // fallback simple
+      expTxt.split('\n').forEach(ln => {
+        const lm = ln.match(/^([A-Z][^—\n]{5,50}(?:Developer|Designer|Manager|Engineer|Analyst|Intern|Lead|Staf|Staff))/);
+        if (lm) experiences.push({ role: lm[1].trim(), company:'', durationRaw:'', months:0 });
+      });
+    }
+  }
+
+  const totalExpMonths = experiences.reduce((s, e) => s + (e.months || 0), 0);
+
+  // ── Education ──
+  const eduM = text.match(/[Pp]endidikan([\s\S]*?)(?=\n[Kk]etera|\n[Ss]ertif|\n[Pp]engalaman|\n[Ss]ertif|$)/);
+  const education = [];
+  if (eduM) {
+    const eduTxt = eduM[1];
+    const dp = /(S[123]|D[234]|Diploma|Bachelor|Master|MBA|SMA|SMK|SD|SMP)\s+([^\n—–\-]+?)\s*[—–\-]+\s*([^\n]+)/g;
+    let dm;
+    while ((dm = dp.exec(eduTxt)) !== null) {
+      const degree = (dm[1]+' '+dm[2]).trim(), school = dm[3].trim();
+      const after = eduTxt.slice(dm.index + dm[0].length, dm.index + dm[0].length + 120);
+      const yrM2  = after.match(/(\d{4})\s*[–\-]\s*(\d{4}|[Ss]ekarang)/);
+      const ipkM  = after.match(/IPK?\s*[:\-]?\s*([\d.]+)/i);
+      education.push({ degree, school, year: yrM2 ? yrM2[1]+'–'+yrM2[2] : '', gpa: ipkM ? parseFloat(ipkM[1]) : null });
+    }
+  }
+
+  // ── Education Level ──
+  const eduLevel = detectEduLevel(text);
+
+  // ── Sertifikasi ──
+  const certM = text.match(/[Ss]ertifik(?:asi|at)[^\n]*\n([\s\S]*?)(?=\n\n|$)/);
+  const certs = [];
+  if (certM) {
+    certM[1].split('\n').forEach(ln => {
+      const cl = ln.replace(/^[-•*]\s*/,'').trim();
+      if (cl.length > 4) certs.push(cl);
+    });
+  }
+
+  // ── Role Fit Score ──
+  const score = computeScore({ hardSkills, softSkills, experiences, education,
+    personalInfo: { email: emailM?emailM[0]:'', linkedin: linkedM?linkedM[0]:'', location: lokasiM?lokasiM[1].trim():'' } });
+
+  const avatarBg = getAvatarColor(id);
+
+  return {
+    id,
+    fileName: fileName || '',
+    personalInfo: {
+      name, role,
+      email:     emailM   ? emailM[0]   : '',
+      linkedin:  linkedM  ? linkedM[0]  : '',
+      phone:     phoneM   ? phoneM[0].trim() : '',
+      location:  lokasiM  ? lokasiM[1].trim() : '',
+      portfolio: portM    ? portM[1].trim()   : '',
+      gender:    genderM  ? genderM[1]        : '',
+      birthDate: tglLahir,
+      age:       usia
+    },
+    skills:       { hard: [...new Set(hardSkills)].slice(0,22), soft: [...new Set(softSkills)].slice(0,12) },
+    experience:   experiences,
+    totalExpMonths,
+    education,
+    eduLevel,
+    certifications: certs,
+    roleFitScore: score,
+    avatarBg,
+    extractedAt: new Date().toISOString()
+  };
+}
+
+function detectEduLevel(text) {
+  if (/\bS3\b|\bDoktor\b/i.test(text)) return 'S3';
+  if (/\bS2\b|\bMagister\b|\bMaster\b|\bMBA\b/i.test(text)) return 'S2';
+  if (/\bS1\b|\bSarjana\b|\bBachelor\b/i.test(text)) return 'S1';
+  if (/\bD3\b|\bDiploma\b/i.test(text)) return 'D3';
+  if (/\bD2\b|\bD4\b/i.test(text)) return 'D4';
+  if (/\bSMK\b|\bSMA\b/i.test(text)) return 'SMA';
+  return '';
+}
+
+function parseAge(raw) {
+  const MONTHS_ID = {januari:0,februari:1,maret:2,april:3,mei:4,juni:5,juli:6,agustus:7,september:8,oktober:9,november:10,desember:11};
+  // "15 Maret 1999"
+  const m1 = raw.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/i);
+  if (m1) {
+    const mo = MONTHS_ID[m1[2].toLowerCase()];
+    if (mo !== undefined) {
+      const bd = new Date(parseInt(m1[3]), mo, parseInt(m1[1]));
+      const now = new Date();
+      let age = now.getFullYear() - bd.getFullYear();
+      if (now < new Date(now.getFullYear(), bd.getMonth(), bd.getDate())) age--;
+      return age;
+    }
+  }
+  // "DD/MM/YYYY"
+  const m2 = raw.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (m2) {
+    const bd = new Date(parseInt(m2[3]), parseInt(m2[2])-1, parseInt(m2[1]));
+    const now = new Date();
+    let age = now.getFullYear() - bd.getFullYear();
+    if (now < new Date(now.getFullYear(), bd.getMonth(), bd.getDate())) age--;
+    return age;
+  }
+  return null;
+}
+
+function parseDuration(raw) {
+  const bm = raw.match(/\((\d+)\s*bulan/);
+  if (bm) return parseInt(bm[1]);
+  const MOMAP = {januari:1,februari:2,maret:3,april:4,mei:5,juni:6,juli:7,agustus:8,september:9,oktober:10,november:11,desember:12};
+  const p = raw.toLowerCase().match(/(jan(?:uari)?|feb(?:ruari)?|mar(?:et)?|apr(?:il)?|mei|jun(?:i)?|jul(?:i)?|agu(?:stus)?|sep(?:tember)?|okt(?:ober)?|nov(?:ember)?|des(?:ember)?)\s+(\d{4})\s*[–\-]\s*(sekarang|(?:jan(?:uari)?|feb(?:ruari)?|mar(?:et)?|apr(?:il)?|mei|jun(?:i)?|jul(?:i)?|agu(?:stus)?|sep(?:tember)?|okt(?:ober)?|nov(?:ember)?|des(?:ember)?)\s+(\d{4}))/i);
+  if (p) {
+    const startKey = Object.keys(MOMAP).find(k => k.startsWith(p[1].slice(0,3)));
+    const startM = MOMAP[startKey] || 1;
+    const startY = parseInt(p[2]);
+    if (p[3].toLowerCase() === 'sekarang') {
+      const now = new Date();
+      return (now.getFullYear() - startY)*12 + (now.getMonth()+1 - startM);
+    }
+    const endKey = Object.keys(MOMAP).find(k => k.startsWith(p[3].slice(0,3)));
+    const endM = MOMAP[endKey] || 1;
+    const endY = parseInt(p[4]);
+    return (endY - startY)*12 + (endM - startM);
+  }
+  return 0;
+}
+
+function computeScore(d) {
+  let s = 0;
+  if (d.personalInfo && d.personalInfo.email)    s += 10;
+  if (d.personalInfo && d.personalInfo.linkedin) s += 5;
+  if (d.personalInfo && d.personalInfo.location) s += 5;
+  const hard = d.hardSkills || (d.skills && d.skills.hard) || [];
+  const soft = d.softSkills || (d.skills && d.skills.soft) || [];
+  s += Math.min(hard.length * 3, 30);
+  s += Math.min(soft.length * 2, 10);
+  const exps = d.experiences || [];
+  const totalMo = exps.reduce((x,e)=>x+(e.months||0),0);
+  s += Math.min(Math.floor(totalMo/6)*5, 25);
+  if (d.education && d.education.length > 0) s += 10;
+  if (d.education && d.education[0] && d.education[0].gpa >= 3.5) s += 5;
+  return Math.min(s, 100);
+}
+
+const AVATAR_COLORS = [
+  'linear-gradient(135deg,#2563eb,#7c3aed)',
+  'linear-gradient(135deg,#0d9488,#0891b2)',
+  'linear-gradient(135deg,#dc2626,#9333ea)',
+  'linear-gradient(135deg,#059669,#0284c7)',
+  'linear-gradient(135deg,#d97706,#dc2626)',
+  'linear-gradient(135deg,#7c3aed,#06b6d4)',
+  'linear-gradient(135deg,#be185d,#7c3aed)',
+  'linear-gradient(135deg,#0369a1,#047857)',
+];
+function getAvatarColor(id) { return AVATAR_COLORS[(id-1) % AVATAR_COLORS.length]; }
+
+// ══════════════════════════════════════════════════════
+//  CANDIDATE MANAGEMENT
+// ══════════════════════════════════════════════════════
+function addCandidate(data) {
+  // avoid duplicates by name + role
+  const dup = candidates.find(c => c.personalInfo.name === data.personalInfo.name && c.personalInfo.email === data.personalInfo.email);
+  if (dup) {
+    // update
+    Object.assign(dup, data);
+  } else {
+    candidates.push(data);
+  }
+  updateHeaderCount();
+}
+
+function updateHeaderCount() {
+  document.getElementById('hdrCount').textContent = candidates.length + ' kandidat';
+}
+
+// ══════════════════════════════════════════════════════
+//  FILTER + RENDER LIST
+// ══════════════════════════════════════════════════════
+function applyFilters() {
+  const q     = document.getElementById('searchIn').value.toLowerCase().trim();
+  const fEdu  = document.getElementById('fEdu').value;
+  const fExp  = document.getElementById('fExp').value;
+  const fScore= document.getElementById('fScore').value;
+  const fAge  = document.getElementById('fAge').value;
+
+  let filtered = candidates.filter(c => {
+    // text search
+    if (q) {
+      const hay = (c.personalInfo.name + ' ' + c.personalInfo.role + ' ' +
+                   c.skills.hard.join(' ') + ' ' + c.personalInfo.location +
+                   c.experience.map(e=>e.company+' '+e.role).join(' ')).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    // education
+    if (fEdu && c.eduLevel !== fEdu) return false;
+    // experience
+    if (fExp) {
+      const mo = c.totalExpMonths || 0;
+      if (fExp === '0-12'  && !(mo >= 0  && mo < 12))  return false;
+      if (fExp === '12-36' && !(mo >= 12 && mo < 36))  return false;
+      if (fExp === '36-72' && !(mo >= 36 && mo < 72))  return false;
+      if (fExp === '72+'   && mo < 72) return false;
+    }
+    // score
+    if (fScore !== '') {
+      const sv = parseInt(fScore);
+      if (fScore === '0' && c.roleFitScore >= 45) return false;
+      if (fScore === '45' && !(c.roleFitScore >= 45 && c.roleFitScore < 70)) return false;
+      if (fScore === '70' && c.roleFitScore < 70) return false;
+    }
+    // age
+    if (fAge && c.personalInfo.age !== null) {
+      const ag = c.personalInfo.age;
+      if (fAge === '<25'   && ag >= 25) return false;
+      if (fAge === '25-30' && !(ag >= 25 && ag <= 30)) return false;
+      if (fAge === '31-35' && !(ag >= 31 && ag <= 35)) return false;
+      if (fAge === '36+'   && ag < 36) return false;
+    }
+    return true;
+  });
+
+  renderCandList(filtered);
+
+  // stats
+  document.getElementById('statTotal').textContent  = candidates.length + ' total';
+  document.getElementById('statShown').textContent  = filtered.length + ' ditampilkan';
+  const avg = filtered.length ? Math.round(filtered.reduce((s,c)=>s+c.roleFitScore,0)/filtered.length) : 0;
+  document.getElementById('statAvgScore').textContent = 'Skor rata-rata: ' + (filtered.length ? avg : '—');
+}
+
+function renderCandList(list) {
+  const body = document.getElementById('candListBody');
+  if (list.length === 0) {
+    body.innerHTML = `<div class="empty-mid"><div class="empty-icon">${candidates.length?'🔎':'🧬'}</div><div class="empty-t">${candidates.length?'Tidak ada yang cocok':'Belum ada kandidat'}</div><div class="empty-d">${candidates.length?'Coba ubah filter pencarian.':'Upload CV atau gunakan contoh di panel kiri.'}</div></div>`;
+    return;
+  }
+
+  // sort by score desc
+  const sorted = [...list].sort((a,b) => b.roleFitScore - a.roleFitScore);
+
+  body.innerHTML = sorted.map(c => {
+    const pi = c.personalInfo;
+    const inits = pi.name.split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
+    const sc = c.roleFitScore;
+    const scCls = sc >= 70 ? 'score-h' : sc >= 45 ? 'score-m' : 'score-l';
+    const expStr = c.totalExpMonths > 0 ? Math.round(c.totalExpMonths/12*10)/10 + ' thn' : '';
+    const kwRes = computeKwMatch(c);
+    const kwBadge = keywords.length > 0 ? `<span class="ci-tag" style="color:#a78bfa;border-color:rgba(124,58,237,.3)">${kwRes.pct}% match</span>` : '';
+
+    return `<div class="cand-item${selectedId===c.id?' selected':''}" onclick="showDetail(${c.id})">
+      <div class="ci-av" style="background:${c.avatarBg}">${inits}</div>
+      <div class="ci-info">
+        <div class="ci-name">${esc(pi.name)}</div>
+        <div class="ci-role">${esc(pi.role || c.fileName)}</div>
+        <div class="ci-meta">
+          ${pi.location ? `<span class="ci-tag">📍 ${esc(pi.location.split(',')[0])}</span>` : ''}
+          ${c.eduLevel  ? `<span class="ci-tag">🎓 ${esc(c.eduLevel)}</span>` : ''}
+          ${expStr      ? `<span class="ci-tag">💼 ${expStr}</span>` : ''}
+          ${pi.age      ? `<span class="ci-tag">🎂 ${pi.age}th</span>` : ''}
+          ${kwBadge}
+        </div>
+      </div>
+      <div class="ci-score">
+        <div class="ci-score-num ${scCls}">${sc}</div>
+        <div class="ci-score-lbl">Skor</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════
+//  SHOW DETAIL
+// ══════════════════════════════════════════════════════
+function showDetail(id) {
+  selectedId = id;
+  const data = candidates.find(c => c.id === id);
+  if (!data) return;
+
+  // highlight in list
+  applyFilters();
+
+  const pi = data.personalInfo;
+  const sc = data.roleFitScore;
+  const scCls = sc >= 70 ? 'score-high' : sc >= 45 ? 'score-mid' : 'score-low';
+  const inits = pi.name.split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
+  const kwRes = computeKwMatch(data);
+
+  let html = '';
+
+  // header
+  html += `<div class="pd-header">
+    <div class="pd-av">${inits}</div>
+    <div class="pd-main">
+      <div class="pd-name">${esc(pi.name)}</div>
+      <div class="pd-role">${esc(pi.role)}</div>
+      <div class="pd-meta">
+        ${pi.email    ? `<div class="meta-it">✉ ${esc(pi.email)}</div>` : ''}
+        ${pi.phone    ? `<div class="meta-it">📞 ${esc(pi.phone)}</div>` : ''}
+        ${pi.linkedin ? `<div class="meta-it">🔗 ${esc(pi.linkedin)}</div>` : ''}
+        ${pi.location ? `<div class="meta-it">📍 ${esc(pi.location)}</div>` : ''}
+        ${pi.portfolio? `<div class="meta-it">🌐 ${esc(pi.portfolio)}</div>` : ''}
+      </div>
+    </div>
+    <div class="score-ring">
+      <div class="score-circle ${scCls}">
+        <span class="sc-num">${sc}</span>
+        <span class="sc-sub">/ 100</span>
+      </div>
+      <div class="sc-lbl">Role-Fit</div>
+    </div>
+  </div>`;
+
+  // personal data block
+  const hasPersonal = pi.age || pi.gender || pi.birthDate || data.eduLevel;
+  if (hasPersonal) {
+    html += `<div class="ib">
+      <div class="ib-title">👤 Data Pribadi</div>
+      ${pi.birthDate ? `<div class="ib-row"><span class="ib-k">Tanggal Lahir</span><span class="ib-v">${esc(pi.birthDate)}</span></div>` : ''}
+      ${pi.age       ? `<div class="ib-row"><span class="ib-k">Usia</span><span class="ib-v">${pi.age} tahun</span></div>` : ''}
+      ${pi.gender    ? `<div class="ib-row"><span class="ib-k">Jenis Kelamin</span><span class="ib-v">${esc(pi.gender)}</span></div>` : ''}
+      ${data.eduLevel? `<div class="ib-row"><span class="ib-k">Pendidikan Terakhir</span><span class="ib-v">${esc(data.eduLevel)}</span></div>` : ''}
+      ${data.totalExpMonths>0?`<div class="ib-row"><span class="ib-k">Total Pengalaman</span><span class="ib-v">${data.totalExpMonths} bulan (≈${(data.totalExpMonths/12).toFixed(1)} thn)</span></div>`:''}
+    </div>`;
+  }
+
+  // keyword match
+  if (keywords.length > 0) {
+    html += `<div class="kw-bar">
+      <div class="kw-bar-title">🔍 Keyword Matching</div>
+      <div class="kw-track-row">
+        <span style="font-size:10px;color:var(--txm);min-width:72px">${kwRes.found.length}/${keywords.length} cocok</span>
+        <div class="kw-track"><div class="kw-fill" style="width:${kwRes.pct}%"></div></div>
+        <span class="kw-pct">${kwRes.pct}%</span>
+      </div>
+      <div class="kw-chips">
+        ${kwRes.found.map(k=>`<span class="kw-y">✓ ${esc(k)}</span>`).join('')}
+        ${kwRes.missing.map(k=>`<span class="kw-n">${esc(k)}</span>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  // skills
+  html += `<div class="ib">
+    <div class="ib-title">⚙ Keterampilan</div>
+    <div class="sk-grp">Hard Skills / Teknis</div>
+    <div class="skills-wrap">
+      ${data.skills.hard.map(s => {
+        const m = keywords.length && keywords.some(k => s.toLowerCase().includes(k));
+        return `<span class="sk-h${m?' sk-match':''}">${esc(s)}</span>`;
+      }).join('')}
+    </div>
+    <div class="sk-grp" style="margin-top:10px">Soft Skills</div>
+    <div class="skills-wrap">
+      ${data.skills.soft.map(s => {
+        const m = keywords.length && keywords.some(k => s.toLowerCase().includes(k));
+        return `<span class="sk-s${m?' sk-match':''}">${esc(s)}</span>`;
+      }).join('')}
+    </div>
+  </div>`;
+
+  // experience
+  html += `<div class="ib">
+    <div class="ib-title">💼 Pengalaman Kerja</div>
+    ${data.experience.length === 0 ? `<div style="font-size:11px;color:var(--txm)">Tidak terdeteksi.</div>` :
+      data.experience.map(e => `
+      <div class="exp-it">
+        <div class="exp-role">${esc(e.role)}</div>
+        <div class="exp-co">${esc(e.company)}</div>
+        <div class="exp-dur">${esc(e.durationRaw)}</div>
+        ${e.months>0?`<div class="dur-badge">⏱ ${e.months} bulan</div>`:''}
+      </div>`).join('')
+    }
+  </div>`;
+
+  // education
+  html += `<div class="ib">
+    <div class="ib-title">🎓 Pendidikan</div>
+    ${data.education.length === 0 ? `<div style="font-size:11px;color:var(--txm)">Tidak terdeteksi.</div>` :
+      data.education.map(e => `
+      <div class="edu-it">
+        <div class="edu-deg">${esc(e.degree)}</div>
+        <div class="edu-sch">${esc(e.school)}</div>
+        <div class="edu-yr">${esc(e.year)}${e.gpa?` · IPK ${e.gpa}`:''}</div>
+      </div>`).join('')
+    }
+  </div>`;
+
+  // certifications
+  if (data.certifications && data.certifications.length > 0) {
+    html += `<div class="ib">
+      <div class="ib-title">🏅 Sertifikasi</div>
+      ${data.certifications.map(c=>`<div class="ib-row" style="font-size:11px"><span class="ib-v" style="text-align:left;max-width:100%">• ${esc(c)}</span></div>`).join('')}
+    </div>`;
+  }
+
+  document.getElementById('emptyDetail').style.display = 'none';
+  const pd = document.getElementById('profileDetail');
+  pd.style.display = 'block';
+  pd.innerHTML = html;
+
+  // JSON
+  const raw = JSON.stringify(data, null, 2);
+  document.getElementById('emptyJson').style.display = 'none';
+  document.getElementById('jsonDetail').style.display = 'block';
+  document.getElementById('jsonBox').innerHTML = syntaxHL(raw);
+  document.getElementById('jsonBox').dataset.raw = raw;
+}
+
+// ══════════════════════════════════════════════════════
+//  KEYWORD MATCHING
+// ══════════════════════════════════════════════════════
+function computeKwMatch(data) {
+  if (!keywords.length) return { pct:0, found:[], missing:[] };
+  const hay = JSON.stringify(data).toLowerCase();
+  const found   = keywords.filter(k => hay.includes(k));
+  const missing = keywords.filter(k => !hay.includes(k));
+  return { pct: Math.round(found.length/keywords.length*100), found, missing };
+}
+
+// ══════════════════════════════════════════════════════
+//  JSON UTILS
+// ══════════════════════════════════════════════════════
+function syntaxHL(json) {
+  return json.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"([^"]+)"(\s*:)/g,'<span class="jk">"$1"</span>$2')
+    .replace(/:\s*"([^"]*)"/g,(m,v)=>`: <span class="js">"${v}"</span>`)
+    .replace(/:\s*(\d+\.?\d*)/g,(m,n)=>`: <span class="jn">${n}</span>`)
+    .replace(/:\s*(true|false|null)/g,(m,b)=>`: <span class="jb">${b}</span>`);
+}
+function copyJson() {
+  const raw = document.getElementById('jsonBox').dataset.raw || '';
+  navigator.clipboard.writeText(raw).then(() => {
+    const f = document.getElementById('cpFlash');
+    f.style.display='inline';
+    setTimeout(()=>f.style.display='none', 2000);
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = raw; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+  });
+}
+
+// ══════════════════════════════════════════════════════
+//  EXPORT CSV
+// ══════════════════════════════════════════════════════
+function exportCSV() {
+  if (candidates.length === 0) { alert('Tidak ada data untuk diekspor.'); return; }
+  const headers = ['Nama','Role','Email','Telepon','Lokasi','Usia','Jenis Kelamin','Pendidikan','IPK','Total Pengalaman (Bln)','Hard Skills','Soft Skills','Sertifikasi','Skor Kecocokan','Keyword Match %'];
+  const rows = candidates.map(c => {
+    const pi = c.personalInfo;
+    const kw = computeKwMatch(c);
+    return [
+      pi.name, pi.role, pi.email, pi.phone, pi.location,
+      pi.age||'', pi.gender||'',
+      c.eduLevel||'',
+      c.education[0]?.gpa||'',
+      c.totalExpMonths,
+      c.skills.hard.join('; '),
+      c.skills.soft.join('; '),
+      (c.certifications||[]).join('; '),
+      c.roleFitScore,
+      kw.pct
+    ].map(v => '"'+String(v).replace(/"/g,'""')+'"');
+  });
+  const csv = [headers.map(h=>`"${h}"`).join(','), ...rows.map(r=>r.join(','))].join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'LensaTalenta_Export_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ══════════════════════════════════════════════════════
+//  TABS
+// ══════════════════════════════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  const idx = name==='profile'?0:1;
+  document.querySelectorAll('.tab-btn')[idx].classList.add('active');
+}
+
+// ══════════════════════════════════════════════════════
+//  PROGRESS / STATUS
+// ══════════════════════════════════════════════════════
+function setProgress(show, msg, pct) {
+  const pw = document.getElementById('progWrap');
+  const pf = document.getElementById('progFill');
+  const ps = document.getElementById('progSt');
+  if (show) {
+    pw.classList.add('show');
+    pf.style.width = (pct||0)+'%';
+    ps.textContent = msg || 'Memproses…';
+    document.getElementById('hdrStatus').innerHTML = '<span class="dot-busy"></span>Memproses';
+    document.getElementById('procBadge').style.display = 'flex';
+  } else {
+    setTimeout(()=>{
+      pw.classList.remove('show');
+      pf.style.width = '0%';
+      document.getElementById('hdrStatus').innerHTML = '<span class="dot-ok"></span>Siap';
+      document.getElementById('procBadge').style.display = 'none';
+    }, 500);
+  }
+}
+function setBusy(b) {
+  document.getElementById('hdrStatus').innerHTML = b
+    ? '<span class="dot-busy"></span>Membaca file…'
+    : '<span class="dot-ok"></span>Siap';
+}
+
+// ══════════════════════════════════════════════════════
+//  CLEAR
+// ══════════════════════════════════════════════════════
+function clearAll() {
+  document.getElementById('cvText').value = '';
+  document.getElementById('batchInfo').style.display = 'none';
+  document.querySelectorAll('.smp-card').forEach(c=>c.classList.remove('active'));
+  fileQueue = [];
+  document.getElementById('fileIn').value = '';
+}
+
+function clearCandidates() {
+  if (candidates.length && !confirm('Hapus semua '+candidates.length+' kandidat?')) return;
+  candidates = []; selectedId = null; _idCounter = 0;
+  updateHeaderCount();
+  applyFilters();
+  document.getElementById('emptyDetail').style.display = 'flex';
+  document.getElementById('profileDetail').style.display = 'none';
+  document.getElementById('emptyJson').style.display = 'flex';
+  document.getElementById('jsonDetail').style.display = 'none';
+  document.getElementById('selInfo').textContent = '—';
+}
+
+// ══════════════════════════════════════════════════════
+//  UTIL
+// ══════════════════════════════════════════════════════
+function esc(s) { return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):''; }
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+function batchAutoload() { processQueue(); }
+
+// ══ TOOLTIP ══
+(function(){
+  const tip = document.createElement('div');
+  tip.id = 'lt-tooltip';
+  document.body.appendChild(tip);
+  window._tipEl = tip;
+})();
+
+function showTip(el, text) {
+  const tip = window._tipEl;
+  tip.textContent = text;
+  tip.classList.add('show');
+  const rect = el.getBoundingClientRect();
+  // position above the element, centered
+  tip.style.left = (rect.left + rect.width / 2) + 'px';
+  tip.style.top  = (rect.top - 36) + 'px';
+  tip.style.transform = 'translateX(-50%)';
+}
+
+function hideTip() {
+  window._tipEl.classList.remove('show');
+}
+</script>
+</body>
+</html>

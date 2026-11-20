@@ -1,0 +1,144 @@
+{
+  "project": {
+    "judul_capstone_project": "LensaTalenta: Intelligent CV Information Extractor for HR Teams",
+    "program": "IBM x Hacktiv8 AI Engineering Bootcamp",
+    "kategori": "HR Technology — Capstone Project",
+    "versi": "2.0",
+    "tanggal_submission": "2026-11-20",
+    "github_repo": "https://github.com/r3conxploit/BOBxHacktiv8-CV-Information-Extractor-Project",
+    "github_pages": "https://r3conxploit.github.io/BOBxHacktiv8-CV-Information-Extractor-Project/"
+  },
+  "problem_statement": {
+    "ringkasan": "Tim HR dan rekruter menghadapi tantangan serius dalam menyaring ratusan hingga ribuan CV masuk setiap kali membuka lowongan kerja. Proses manual yang memakan waktu 6–8 menit per CV menyebabkan keterlambatan rekrutmen, risiko kehilangan kandidat terbaik ke kompetitor, dan beban kerja administratif yang tinggi bagi tim HR.",
+    "konteks": "Di Indonesia, pertumbuhan pasar kerja digital yang pesat telah meningkatkan volume aplikasi kerja secara signifikan. Platform seperti LinkedIn, Jobstreet, dan Glints memudahkan pelamar mengirim CV massal — namun di sisi HR, proses review tetap manual dan time-consuming.",
+    "yang_terdampak": [
+      "Tim HR dan Talent Acquisition yang menanggung beban kerja administratif tinggi",
+      "Qualified candidates yang berpotensi tidak terdeteksi akibat keterbatasan waktu review",
+      "Perusahaan yang kehilangan waktu dan biaya akibat proses rekrutmen yang lambat",
+      "Departemen teknis yang bergantung pada HR untuk menyaring kandidat dengan skill spesifik"
+    ],
+    "mengapa_penting": "Kemampuan memproses CV secara cepat dan akurat telah menjadi keunggulan kompetitif nyata. Perusahaan yang mampu mengidentifikasi dan menghubungi kandidat terbaik lebih cepat memiliki win rate rekrutmen lebih tinggi. Selain itu, standarisasi proses screening mengurangi bias tidak disadari dan meningkatkan keadilan dalam seleksi."
+  },
+  "target_users": {
+    "primer": [
+      {
+        "segmen": "HR Manager / Talent Acquisition Specialist",
+        "karakteristik": "Mengelola proses rekrutmen end-to-end, bekerja di perusahaan 50–5000+ karyawan, terbiasa dengan ATS tools",
+        "kebutuhan_utama": "Screening CV massal yang cepat, laporan kandidat terstruktur, kemampuan shortlist objektif berbasis data"
+      },
+      {
+        "segmen": "Technical Recruiter",
+        "karakteristik": "Fokus pada posisi IT/Engineering, harus memahami tech stack, bekerja sama dengan engineering manager",
+        "kebutuhan_utama": "Filter berdasarkan tech stack spesifik, keyword matching skill teknis, identifikasi level seniority"
+      }
+    ],
+    "sekunder": [
+      {
+        "segmen": "HR Generalist (Perusahaan Kecil/Startup)",
+        "karakteristik": "Merangkap banyak tugas, waktu terbatas, tidak memiliki budget untuk ATS komersial",
+        "kebutuhan_utama": "Alat gratis yang langsung bisa dipakai tanpa training, output mudah dipahami"
+      },
+      {
+        "segmen": "Kepala Departemen Non-HR",
+        "karakteristik": "Ikut terlibat dalam proses hiring teknis, butuh ringkasan kandidat yang singkat dan visual",
+        "kebutuhan_utama": "Kartu profil kandidat visual, Role-Fit Score yang mudah dibaca, perbandingan kandidat cepat"
+      }
+    ]
+  },
+  "potential_impact": {
+    "dampak_langsung": [
+      "Mempercepat proses screening awal dari 6–8 menit/CV menjadi di bawah 30 detik/CV (efisiensi 10–15x)",
+      "Menghasilkan format output yang konsisten dan terstruktur dari berbagai format CV yang beragam",
+      "Meningkatkan objektivitas penilaian awal berbasis data skill dan pengalaman, bukan kesan visual",
+      "Export CSV yang langsung terintegrasi ke spreadsheet atau HRIS yang sudah digunakan tim HR",
+      "Memungkinkan satu HR memproses ratusan CV dalam waktu yang sebelumnya hanya cukup untuk puluhan"
+    ],
+    "dampak_jangka_panjang": [
+      "Pengurangan cost-per-hire melalui efisiensi proses administratif",
+      "Peningkatan kualitas shortlist karena kandidat qualified tidak terlewat akibat keterbatasan waktu",
+      "Waktu HR tersalurkan ke aktivitas bernilai tinggi: wawancara mendalam, culture fit assessment, employer branding",
+      "Fondasi database kandidat terstruktur untuk analitik rekrutmen jangka panjang",
+      "Potensi pengurangan unconscious bias dalam proses screening awal"
+    ],
+    "metrik_keberhasilan": [
+      "Waktu rata-rata screening per CV turun minimal 80%",
+      "Tingkat akurasi ekstraksi informasi kunci (nama, email, skill) di atas 90% untuk CV berformat standar",
+      "HR dapat memproses 100+ CV dalam waktu di bawah 15 menit",
+      "Kepuasan pengguna HR dalam kemudahan penggunaan (target: 4+/5)"
+    ]
+  },
+  "improvisasi_yang_dibuat": [
+    {
+      "fitur": "Real PDF Text Extraction via PDF.js",
+      "deskripsi": "Mengintegrasikan library PDF.js (Mozilla) untuk membaca teks langsung dari byte stream PDF di browser. File CV tidak perlu dikirim ke server — semua pemrosesan terjadi lokal di perangkat user, menjaga privasi data kandidat 100%.",
+      "teknologi": "PDF.js v3.11.174 (Cloudflare CDN)",
+      "dampak": "HR dapat langsung upload file PDF asli dari pelamar tanpa konversi manual"
+    },
+    {
+      "fitur": "Real DOCX Text Extraction via mammoth.js",
+      "deskripsi": "Mengintegrasikan library mammoth.js untuk mengekstrak teks mentah dari file Microsoft Word (.docx) di browser tanpa server.",
+      "teknologi": "mammoth.js v1.6.0 (Cloudflare CDN)",
+      "dampak": "Mendukung format CV paling umum yang digunakan pelamar Indonesia"
+    },
+    {
+      "fitur": "Batch Processing Multi-File",
+      "deskripsi": "HR dapat upload ratusan file CV sekaligus (drag & drop multi-file atau Ctrl+klik). Engine memproses file satu per satu secara asinkron dengan indikator progres real-time (N/Total).",
+      "teknologi": "JavaScript Async/Await, File API",
+      "dampak": "Memungkinkan pemrosesan massal tanpa batasan jumlah file"
+    },
+    {
+      "fitur": "Indonesian Language Extraction Engine",
+      "deskripsi": "Parser cerdas dengan regex yang dioptimalkan untuk format CV Indonesia: parser kalender Bahasa Indonesia (Januari–Desember), deteksi 'Sekarang' sebagai end date pekerjaan, parsing format tanggal lahir Indonesia, deteksi label seksi khas CV Indonesia.",
+      "teknologi": "Vanilla JavaScript Regex Engine",
+      "dampak": "Akurasi ekstraksi lebih tinggi untuk CV berbahasa Indonesia dibanding solusi generik"
+    },
+    {
+      "fitur": "Keyword Matching System",
+      "deskripsi": "HR dapat menambahkan daftar keyword requirement (skill, teknologi, sertifikasi) secara bebas. Sistem mencocokkan keyword dengan seluruh data CV dan menampilkan persentase kecocokan beserta visual chip mana yang match (hijau) dan tidak match (merah coret).",
+      "teknologi": "Vanilla JavaScript, real-time matching",
+      "dampak": "Membantu HR memfilter kandidat berdasarkan requirement spesifik posisi yang sedang dibuka"
+    },
+    {
+      "fitur": "Role-Fit Score Algorithm",
+      "deskripsi": "Skor komposit 0–100 yang dihitung otomatis berdasarkan: kelengkapan informasi kontak (20 poin), kedalaman hard skills (maks 30 poin), soft skills (maks 10 poin), total pengalaman kerja dalam bulan (maks 25 poin), kualitas pendidikan termasuk IPK (maks 15 poin).",
+      "teknologi": "Custom scoring algorithm",
+      "dampak": "Memberikan indikator objektif kecocokan kandidat yang bisa digunakan untuk prioritisasi review"
+    },
+    {
+      "fitur": "Multi-dimensional Filter System",
+      "deskripsi": "Filter kombinasi: tingkat pendidikan (S1/S2/D3/SMA), rentang pengalaman (Fresh/1-3thn/3-6thn/6+thn), Role-Fit Score (Tinggi/Menengah/Rendah), kelompok usia (<25/25-30/31-35/36+), dan free-text search real-time.",
+      "teknologi": "Vanilla JavaScript, real-time DOM manipulation",
+      "dampak": "HR dapat menemukan kandidat yang tepat dari ratusan hasil dalam hitungan detik"
+    },
+    {
+      "fitur": "Export CSV dengan Data Lengkap",
+      "deskripsi": "Export semua kandidat yang telah diproses ke file .csv dengan kolom: Nama, Role, Email, Telepon, Lokasi, Usia, Jenis Kelamin, Pendidikan, IPK, Total Pengalaman, Hard Skills, Soft Skills, Sertifikasi, Skor Kecocokan, Keyword Match %.",
+      "teknologi": "Blob API, CSV generation",
+      "dampak": "Output langsung terintegrasi ke workflow HR yang sudah ada (Excel, Google Sheets, HRIS)"
+    }
+  ],
+  "alur_sistem": {
+    "langkah_1_input": "HR mengupload file CV (PDF/DOCX) satu file atau ratusan file sekaligus via drag & drop, atau memilih contoh CV built-in, atau paste teks CV langsung",
+    "langkah_2_ekstraksi_teks": "PDF.js atau mammoth.js membaca file dan mengkonversi ke teks mentah di browser — tanpa server",
+    "langkah_3_information_extraction": "Engine parsing memproses teks: identifikasi nama & role, ekstraksi kontak, deteksi 80+ hard skills & 30+ soft skills, parsing pengalaman kerja dengan durasi dalam bulan, ekstraksi pendidikan dengan IPK",
+    "langkah_4_keyword_matching": "Jika HR telah mengisi keyword requirement, sistem mencocokkan dan menghitung persentase kecocokan untuk setiap kandidat",
+    "langkah_5_scoring": "Role-Fit Score 0–100 dihitung otomatis berdasarkan algoritma multi-faktor",
+    "langkah_6_output": "Kandidat tampil di daftar terurut berdasarkan skor, dapat difilter dan dicari, detail profil visual tersedia, JSON mentah bisa disalin, semua data bisa dieksport ke CSV"
+  },
+  "tech_stack": {
+    "frontend": "HTML5, CSS3 (Custom Properties, Grid Layout, Glassmorphism), Vanilla JavaScript ES6+",
+    "libraries": [
+      "PDF.js v3.11.174 — Mozilla PDF parser (client-side)",
+      "mammoth.js v1.6.0 — DOCX text extractor (client-side)"
+    ],
+    "backend": "Tidak ada — zero backend architecture",
+    "hosting": "GitHub Pages (static deployment)",
+    "catatan": "Seluruh pemrosesan berlangsung 100% di browser. Data CV tidak pernah meninggalkan perangkat user."
+  },
+  "file_structure": {
+    "index.html": "Single-page application utama — mengandung semua HTML, CSS, dan JavaScript",
+    "README.md": "Dokumentasi lengkap project",
+    "project.json": "Metadata project untuk submission (file ini)",
+    ".gitignore": "Git configuration"
+  }
+}

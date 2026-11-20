@@ -230,6 +230,131 @@ Dibandingkan pendekatan CV screening tradisional, LensaTalenta menghadirkan:
 
 ---
 
+## 🗣️ Gambaran Umum Project
+
+**LensaTalenta** itu kayak "asisten pintar" buat tim HR atau rekruter yang kerjanya ngecek CV pelamar kerja. Bayangin kamu kerja di HRD, terus dalam satu hari ada **500 CV masuk** — mau dibaca satu-satu? Capek banget kan? Nah, LensaTalenta tugasnya adalah **baca semua CV itu sendiri secara otomatis**, terus ngasih tahu kamu: *"Eh, yang ini punya skill Node.js, pengalaman 2 tahun, lulusan S1, umur 25 tahun, skor cocoknya 90/100 buat posisi ini!"* — semua dalam hitungan detik, tanpa kamu harus buka satu pun file PDF-nya. HR tinggal lihat daftar kandidat yang udah diurutin dari yang paling cocok sampai yang paling kurang cocok, terus tinggal klik buat lihat detail profilnya, atau langsung download file Excel-nya.
+
+**Cara kerjanya simpel banget:** Kamu tinggal **lempar file CV** (bisa PDF, bisa Word, bisa ratusan file sekaligus) ke aplikasi ini, terus ketik keyword yang kamu cari misalnya *"python"* atau *"figma"* atau *"S2"*, lalu klik tombol **Ekstrak** — dan boom! 🎉 Aplikasi langsung "baca" semua CV itu, nyari nama, email, skill, pengalaman kerja, pendidikan, sampai usia si pelamar, terus ngitung skor kecocokannya, dan nampilin semuanya dalam bentuk **kartu profil yang rapi dan mudah dibaca**. Yang skill-nya cocok sama keyword kamu langsung dikasih tanda hijau ✅, yang nggak cocok dikasih merah ❌. Semua proses ini terjadi **langsung di browser kamu sendiri** — data CV pelamar nggak kemana-mana, nggak dikirim ke server manapun, jadi aman dan privat. Intinya, kerjaan yang biasanya butuh **seharian penuh** bisa selesai dalam **15 menit** ☕.
+
+---
+
+## 🚀 Potensi Pengembangan Lanjutan
+
+### 🤖 1. AI Agent yang Beneran Mikir (Bukan Cuma Baca)
+
+Sekarang LensaTalenta masih pakai **pattern matching** — alias nyari kata kunci kayak mesin. Ke depannya bisa diintegrasikan dengan model AI beneran seperti:
+
+- **IBM watsonx.ai** → AI baca CV lalu nulis *ringkasan kandidat* dalam 2 kalimat otomatis, menilai "kecocokan budaya perusahaan", dan memprediksi potensi pertumbuhan kandidat
+- **Large Language Model (LLM)** → Bisa ngerti konteks. Misal CV-nya nulis *"pernah handle infrastruktur 50 server"* — AI langsung tahu ini level senior DevOps, tanpa perlu ada kata "senior" tersurat
+- **NLP Parser Bahasa Indonesia** → Sekarang parser masih regex manual. Dengan NLP, bisa ngerti kalimat seperti *"bertanggung jawab atas tim 10 orang"* dan otomatis extract skill kepemimpinan
+
+---
+
+### ⚡ 2. Full Automation Pipeline — Upload → Shortlist → Kirim Email Otomatis
+
+Ini yang paling impactful buat HR. Alurnya:
+
+```
+CV masuk via email/form
+        ↓
+LensaTalenta extract otomatis (trigger)
+        ↓
+AI score & ranking kandidat
+        ↓
+Yang skor ≥ 75 → otomatis masuk shortlist
+        ↓
+Email undangan interview terkirim sendiri
+        ↓
+HR tinggal konfirmasi jadwal
+```
+
+Teknologi yang dibutuhkan: **Zapier / Make.com** untuk automation, atau **Node.js backend** dengan cron job + **SMTP email sender**.
+
+---
+
+### 📧 3. Integrasi Sumber CV Otomatis
+
+Sekarang HR masih harus upload file manual. Bayangkan kalau LensaTalenta bisa **tarik CV langsung** dari:
+
+| Sumber | Cara Integrasi |
+|---|---|
+| **Gmail / Outlook** | OAuth API → scan email masuk, attachment CV langsung diproses |
+| **Jobstreet / Glints** | Web scraper / API → kandidat baru otomatis masuk sistem |
+| **Google Form** | Google Sheets API → pelamar isi form → data otomatis diekstrak |
+| **WhatsApp Business** | Twilio API → pelamar kirim CV via WA → langsung diproses |
+
+---
+
+### 🧠 4. AI Interview Screener — Chatbot Pra-Seleksi Otomatis
+
+Kandidat yang lolos screening CV otomatis dikirim link ke **chatbot AI**. Chatbot ini:
+- Tanya 5–10 pertanyaan standar sesuai posisi yang dilamar
+- Analisis jawaban kandidat (kecepatan, kata kunci, konsistensi dengan CV)
+- Kasih laporan ke HR: *"Kandidat ini jawab pertanyaan teknis dengan percaya diri tapi kurang pengalaman manajemen"*
+
+Teknologi: **IBM watsonx Assistant** + integrasi ke LensaTalenta via API
+
+---
+
+### 📊 5. Analytics Dashboard HR
+
+Tambahan halaman analitik yang otomatis generate insights:
+
+- 📈 **Tren skill** — skill apa yang paling banyak dimiliki kandidat bulan ini vs bulan lalu
+- 🗺️ **Peta sebaran** — kandidat terbanyak dari kota mana
+- ⏱️ **Waktu rata-rata** proses dari apply sampai hire
+- 🎓 **Distribusi pendidikan** — perbandingan S1 vs S2 vs fresh graduate per posisi
+- 💡 **Rekomendasi otomatis**: *"Posisi Backend Dev paling banyak dilamar kandidat dari Bandung, pertimbangkan buka lowongan remote"*
+
+---
+
+### 🔗 6. Integrasi Sistem HR Perusahaan (HRIS)
+
+Koneksi dua arah dengan sistem yang sudah ada di perusahaan:
+
+| Sistem | Fungsi |
+|---|---|
+| **Workday / SAP SuccessFactors** | Push data kandidat shortlist langsung ke ATS perusahaan |
+| **Slack / Microsoft Teams** | Notifikasi otomatis ke channel HR: *"5 kandidat baru dengan skor ≥80 masuk hari ini"* |
+| **Notion / Trello** | Buat kartu kandidat otomatis di board rekrutmen |
+| **Google Calendar** | Auto-schedule interview slot berdasarkan ketersediaan interviewer |
+
+---
+
+### 🔒 7. Verifikasi Otomatis Keaslian CV
+
+Problem nyata di rekrutmen: **CV palsu atau dilebih-lebihkan**. Fitur future:
+- Cek LinkedIn kandidat otomatis → bandingkan data CV vs profil LinkedIn (jabatan, durasi kerja, perusahaan)
+- Flag anomali: *"IPK di CV 3.9 tapi tidak ada sertifikasi/achievement pendukung — perlu diverifikasi"*
+- Deteksi CV duplikat dari kandidat yang daftar berkali-kali dengan nama berbeda
+
+---
+
+### 🌍 8. Multi-bahasa & Multi-format
+
+- **CV bahasa Inggris** → sekarang parser sudah bisa, tapi belum dioptimalkan
+- **CV bahasa Mandarin/Jepang** → relevan untuk perusahaan multinasional
+- **CV dalam format tabel/kolom** → PDF dengan layout kompleks masih kadang terbaca acak, perlu **vision AI** (OCR + layout analysis)
+- **Scan CV fisik via kamera** → ambil foto ijazah atau CV cetak → AI baca dan ekstrak
+
+---
+
+### 💡 Roadmap Prioritas
+
+```
+Sekarang (v2.0) ──→ Sudah jalan ✅
+
+v3.0 (3 bulan)  ──→ Backend + Email automation + Integrasi Gmail
+
+v4.0 (6 bulan)  ──→ AI summarization (watsonx) + Chatbot screener
+
+v5.0 (1 tahun)  ──→ Full HRIS integration + Analytics dashboard + CV verification
+```
+
+> Intinya: LensaTalenta sekarang baru jadi **"pembaca CV otomatis"**. Tapi potensinya bisa jadi **rekruter AI penuh** yang kerja 24 jam, proses ribuan kandidat, dan cuma ngebangunin HR kalau udah ada kandidat yang beneran layak diinterview. 🎯
+
+---
+
 ## 📄 Lisensi
 
 MIT License — bebas digunakan, dimodifikasi, dan didistribusikan untuk keperluan apapun.
